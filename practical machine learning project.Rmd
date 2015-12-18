@@ -1,0 +1,100 @@
+---
+title: "Practical Machine Learning"
+author: "Hao YU"
+date: "December 18, 2015"
+output: html_document
+---
+
+
+Load the data on my desktop, and remove the X variable.
+```{r}
+pml.training <- read.csv("~/Desktop/pml-training.csv")
+pml.testing <- read.csv("~/Desktop/pml-testing.csv")
+
+pml.training<-pml.training[-1]
+pml.testing<-pml.testing[-1]
+
+```
+
+Load the packages with required packages.
+```{r}
+library(caret)
+library(FSelector)
+library(randomForest)
+
+```
+
+Set the seed and do the in-sample partition of the training set.
+```{r}
+set.seed(24)
+training <- createDataPartition(y=pml.training$classe, p=0.6, list=FALSE)
+set.training <- pml.training[training, ]
+set.testing <- pml.training[-training, ]
+```
+
+Assign blank cells to NA and remove columns with missing raito larger than 0.5.
+```{r}
+set.training[set.training==""]<-NA
+na.factor<-c()
+for(i in 1:length(set.training)) { 
+  if(sum(is.na( set.training[, i])) / nrow(set.training) > 0.5 ) { 
+    na.factor<-c(na.factor,i)
+  }   
+    } 
+na.variables<-colnames(set.training[na.factor])
+na.factor
+na.variables
+set.training<-set.training[-na.factor]
+
+dim(set.training)
+```
+
+Exclude variables with low information gain and get 50 useful indicators.
+```{r}
+weights<-information.gain(classe~.,set.training)
+print(weights)
+factor.train<-cutoff.k(weights,50)
+factor.train
+```
+
+Get the formula and random forest model.
+```{r}
+formula.train <- as.simple.formula(factor.train, "classe")
+print(formula.train)
+
+model.train <- randomForest(formula.train, data=set.training)
+```
+
+Use the model to predict in-sample testing data and compare results with truth.
+```{r}
+prediction.insample <- predict(model.train, set.testing, type = "class")
+
+confusionMatrix(prediction.insample, set.testing$classe)
+```
+
+Adjust the levels of variables in testing data.
+```{r}
+levels(pml.testing$new_window)<-
+  levels(set.training$new_window)
+
+levels(pml.testing$cvtd_timestamp)<-
+  levels(set.training$cvtd_timestamp)
+```
+
+Use the train model to predict the testing data and get the answers.
+```{r}
+answers<-predict(model.train,pml.testing,type="class")
+answers
+
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("problem_id_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
+
+pml_write_files(answers)
+```
+
+More information and reference, please visit my site: tiiome.com
